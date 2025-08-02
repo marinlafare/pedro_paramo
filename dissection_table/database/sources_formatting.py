@@ -3,6 +3,8 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 from dissection_table.database.db_interface import DBInterface
 from dissection_table.database.models import Version, Paragraph
+import umap
+
 
 sources = dict()
 sources["portuguese_1"] = epub.read_epub("dissection_table/database/sources/Pedro Páramo (Juan Rulfo [Rulfo, Juan])_portugues_(Z-Library).epub")
@@ -155,15 +157,44 @@ def version(source:str = None):
         hard_coded_data = versions_data["spanish_1"]
     hard_coded_data["raw_text"] = get_raw_text(source)
     hard_coded_data["version_name"] = source
+    words = hard_coded_data["raw_text"].replace('\n',' ').split(' ')
+    n_words = len([x for x in words if len(x)>0])
+    hard_coded_data["n_words"] = n_words
+    paragraphs = [x for x in hard_coded_data["raw_text"].split('\n') if len(x)>0]
+    hard_coded_data['n_paragraphs'] = len(paragraphs)
+    hard_coded_data['paragraphs'] = paragraphs
     return hard_coded_data
 
 async def feed_database():
+    from langchain_ollama import OllamaEmbeddings
+    
+    print('ollama_and_umap_models_load')
+    ollama_emb = OllamaEmbeddings(model="granite-embedding:278m")
+    n_components = 3
+    n_neighbors = 15
+    min_dist = 0.1
+    random_state = 42
+    reducer = umap.UMAP(
+            n_components=n_components,
+            n_neighbors=n_neighbors,
+            min_dist=min_dist,
+            random_state=random_state
+        )
+    print('models_loaded')
+    
     for current_version in sources.keys():
+        print("####")
+        print(current_version)
+        print("####")
+        
         version_interface = DBInterface(Version)
         paragraph_interface = DBInterface(Paragraph)
         data_version = version(current_version)
         text = data_version["raw_text"]
-        paragraphs = [x for x in text.split('\n') if len(x)>0]
+        paragraphs = data_version['paragraphs']
+        embeddings_list = ollama_emb.embed_documents(paragraphs)
+        reduced_embeddings = reducer.fit_transform(embeddings_list)
+        
         version_paragraphs = []
         for ind, paragraph in enumerate(paragraphs):
             data = dict()
@@ -171,7 +202,10 @@ async def feed_database():
             data["n_paragraph"] = ind
             data["text"] = paragraph
             data["n_words"] = len(paragraph.split(' '))
+            data["embedding"] = embeddings_list[ind]
+            data['umap'] = reduced_embeddings[ind]
             version_paragraphs.append(data)
+        data_version.pop('paragraphs')
         await version_interface.create(data_version)
         await paragraph_interface.create_all(version_paragraphs)
     

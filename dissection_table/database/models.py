@@ -1,10 +1,11 @@
 # database.database.models.py
-
 from typing import Any
 from sqlalchemy import Column, ForeignKey, Integer, String, Float, BigInteger, Table
-from sqlalchemy.ext.declarative import declarative_base
+#from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import Boolean
+from pgvector.sqlalchemy import Vector
 Base = declarative_base()
 
 
@@ -21,11 +22,14 @@ class Version(Base):
     
     version_data = Column('version_data',String, nullable = False)
     raw_text = Column('raw_text',String, nullable = False)
-    
+    n_words = Column('n_words', Integer, nullable = False)
+    n_paragraphs = Column('n_paragraphs', Integer, nullable =False) 
 class Paragraph(Base):
     __tablename__ = "paragraph"
     id = Column(Integer, primary_key=True, autoincrement=True)
     version_name = Column("version_name",String, unique = False, nullable=False)
     n_paragraph = Column('n_paragraph', Integer, nullable = False)
     text = Column("text", String, nullable=False)
+    embedding = Column("embedding",Vector(768), nullable = False)
     n_words = Column('n_words', Integer, nullable = False)
+    umap = Column('umap', Vector(3), nullable = False)    
