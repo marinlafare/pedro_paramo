@@ -53,7 +53,7 @@ async def get_n_paragraph(version, n_paragraph):
         """, params = {"n_p":n_paragraph,"v_n":version})
     if len(data)<1:
         return f"this paragraph: {n_paragraph} doesn't exist"
-    print(data)
+    #print(data)
     return data[0][0]
 
 async def get_n_paragraph_embedding(version, n_paragraph):

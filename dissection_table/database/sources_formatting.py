@@ -151,10 +151,12 @@ def get_raw_text(source: dict= {}):
         return get_raw_text("spanish_1")
 import unicodedata
 
+
 def clean_line(string: str = None) -> str:
     """
     Cleans a string by removing all non-alphabetic characters (preserving
-    letters with diacritics) and converting all alphabetic characters to lowercase.
+    letters with diacritics and common apostrophes) and converting all alphabetic
+    characters to lowercase.
 
     Args:
         string (str): The input string to clean. If None, returns an empty string.
@@ -165,11 +167,14 @@ def clean_line(string: str = None) -> str:
     if string is None:
         return ""
     
-    # Use a list comprehension to filter characters.
-    # unicodedata.category(char) returns the general category of the character.
-    # 'L' category includes all letters (uppercase, lowercase, titlecase, modifier, other).
-    # This correctly handles accented characters like 'á', 'ü', 'ñ'.
-    cleaned_chars = [char for char in string if unicodedata.category(char).startswith('L')]
+    # Define a set of common apostrophe characters to explicitly keep
+    apostrophes = {"'", "’", "`"} # Includes straight, right single quote, and grave accent (sometimes used as apostrophe)
+    
+    cleaned_chars = []
+    for char in string:
+        # Check if the character is a Unicode letter OR if it's one of the allowed apostrophes
+        if unicodedata.category(char).startswith('L') or char in apostrophes:
+            cleaned_chars.append(char)
     
     # Join the filtered characters back into a string
     cleaned_string = "".join(cleaned_chars)
@@ -197,7 +202,8 @@ def version(source:str = None):
     
     hard_coded_data["n_words"] = n_words_len
     paragraphs = [x for x in hard_coded_data["raw_text"].split('\n') if len(x)>0]
-    hard_coded_data['n_paragraphs'] = len(paragraphs)
+    
+    hard_coded_data['n_paragraphs'] = len(words)
     hard_coded_data['paragraphs'] = paragraphs
     hard_coded_data['words_set'] = '#'.join([x for x in word_set])
     hard_coded_data['raw_words'] = raw_words
@@ -224,17 +230,29 @@ async def feed_database():
         print("####")
         print(current_version)
         print("####")
-        
+        print('$$$')
+        print('getting version')
         version_interface = DBInterface(Version)
         paragraph_interface = DBInterface(Paragraph)
         data_version = version(current_version)
+        print('version done')
         text = data_version["raw_text"]
         paragraphs = data_version['paragraphs']
-        embeddings_list = ollama_emb.embed_documents(paragraphs)
+        clean_for_embedding = [
+                                [clean_line(x).replace('  ',' ') for x in paragraphs[ind].split(' ')]
+                                for ind in range(len(paragraphs))
+                                ]
+        clean_for_embedding = [' '.join([x for x in clean_for_embedding[ind]])
+                                for ind in range(len(clean_for_embedding))]
+        clean_for_embedding = [x[1:].replace('  ',' ') if x.startswith(' ') else x.replace('  ',' ') for x in clean_for_embedding]
+        print('embeddings')
+        embeddings_list = ollama_emb.embed_documents(clean_for_embedding)
+        print('end of embedding')
+        print('umap embedding')
         reduced_embeddings = reducer.fit_transform(embeddings_list)
-        
+        print('end_umap embedding')
         version_paragraphs = []
-        for ind, paragraph in enumerate(paragraphs):
+        for ind, paragraph in enumerate(clean_for_embedding):
             data = dict()
             data['version_name'] = data_version["version_name"]
             data["n_paragraph"] = ind
@@ -246,6 +264,7 @@ async def feed_database():
         data_version.pop('paragraphs')
         await version_interface.create(data_version)
         await paragraph_interface.create_all(version_paragraphs)
+        #return clean_for_embedding_1,clean_for_embedding_2
     
         
 

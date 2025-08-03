@@ -18,7 +18,7 @@ class Corpus:
         self.metadata = version_data['version_data']
         self.text = version_data['raw_text']
         self.n_words = version_data['n_words']
-        self.n_paragraphs = version_data['n_paragraphs']
+        self.original = version_data['n_paragraphs']
         self.word_set = version_data['word_set']
         
     async def word_freq(self):
