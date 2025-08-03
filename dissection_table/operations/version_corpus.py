@@ -1,6 +1,7 @@
 #dissection_table.operations.version_corpus.py
 
 from dissection_table.operations.sources import *
+from dissection_table.operations.frequencies import *
 from dissection_table.database.ask_db import *
 
 class Corpus:
@@ -18,6 +19,16 @@ class Corpus:
         self.text = version_data['raw_text']
         self.n_words = version_data['n_words']
         self.n_paragraphs = version_data['n_paragraphs']
+        self.word_set = version_data['word_set']
+        
+    async def word_freq(self):
+        return await get_word_freq_dict(self.version)
+    async def int_to_word(self):
+        word_freq = await get_word_freq_dict(self.version)
+        return dict(zip(range(len(word_freq)), word_freq.keys()))
+    async def word_to_int(self):
+        word_freq = await get_word_freq_dict(self.version)
+        return dict(zip(word_freq.keys(),range(len(word_freq))))
     async def all_paragraphs(self):
         return await get_paragraphs(self.version)
     async def all_embeddings(self):
@@ -28,3 +39,5 @@ class Corpus:
         return await get_n_paragraph(self.version, n_paragraph)
     async def n_paragraph_embedding(self, n_paragraph):
         return await get_n_paragraph_embedding(self.version, n_paragraph)
+    async def n_paragraph_umap(self, n_paragraph):
+        return await get_n_paragraph_umap(self.version, n_paragraph)

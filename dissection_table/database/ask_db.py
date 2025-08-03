@@ -7,6 +7,7 @@ from sqlalchemy import text, select
 from urllib.parse import urlparse
 from typing import Tuple, Set, List, Dict, Any, Union
 import ast
+import numpy as np
 async def get_async_db_session():
     """
     Provides an asynchronous database session using DBInterface.
@@ -25,9 +26,6 @@ async def open_request(sql_question: str,
                        fetch_as_dict: bool = False) -> Union[List[Dict[str, Any]], List[Tuple[Any, ...]], None]:
     """
     Executes a SQL query asynchronously using SQLAlchemy's AsyncSession.
-    
-    This version correctly handles transactions to ensure DDL and DML
-    statements are committed.
     """
     async with await get_async_db_session() as session:
         try:
@@ -65,26 +63,29 @@ async def get_n_paragraph_embedding(version, n_paragraph):
         """, params = {"n_p":n_paragraph,"v_n":version})
     if len(data)<1:
         return f"this paragraph: {n_paragraph} doesn't exist"
-    print(data)
-    return data[0][0]
+    raw_embedding_value = data[0][0]
+    
+    try:
+        # Attempt to parse the UMAP embedding.
+        # It handles both string representations and already-parsed list/array types.
+        embedding_list = ast.literal_eval(str(raw_embedding_value))
+        return embedding_list
+    except (ValueError, SyntaxError) as e:
+        return f"Error parsing UMAP embedding for paragraph {n_paragraph} in version {version}: {e}"
 
 from collections import OrderedDict
-from collections import OrderedDict
-# Assuming open_request is defined and correctly handles async DB queries
-# and returns a list of tuples/rows, e.g., [(1, [...]), (2, [...]), ...]
-
 async def get_all_embeddings(version):
     """
     Retrieves all embeddings for a given version, returning them
-    as an OrderedDict sorted by n_paragraph. Ensures embeddings are
-    parsed as Python lists (vectors).
+    as a NumPy array (matrix), sorted by n_paragraph. Ensures embeddings are
+    parsed as Python lists (vectors) before converting to NumPy.
 
     Args:
         version (str): The name of the version to retrieve embeddings for.
 
     Returns:
-        OrderedDict: A dictionary where keys are n_paragraph (int) and
-                     values are embeddings (list of floats).
+        np.ndarray: A 2D NumPy array where each row is an embedding vector,
+                    sorted by their original n_paragraph.
         str: An error message if the version doesn't exist or no data is found.
     """
     
@@ -93,8 +94,6 @@ async def get_all_embeddings(version):
         WHERE version_name = :v_n;
     """
     
-    # open_request is expected to return a list of Row/tuple objects,
-    # e.g., [(n_paragraph_int, embedding_value_from_db), ...]
     data = await open_request(query, params={"v_n": version})
     
     if not data:
@@ -103,37 +102,37 @@ async def get_all_embeddings(version):
     # Sort the data by 'n_paragraph' (which is at index 0)
     sorted_data = sorted(data, key=lambda x: x[0])
     
-    # Create an OrderedDict from the sorted data.
-    ordered_embeddings = OrderedDict()
+    embeddings_list = []
     for item in sorted_data:
         n_paragraph = item[0]
-        raw_embedding_value = item[1] # This could be a string or already a list/array
+        raw_embedding_value = item[1]
         
         try:
-            # Attempt to parse the embedding. If it's already a list, literal_eval will return it as is.
-            # If it's a string representation of a list, it will parse it.
-            embedding_list = ast.literal_eval(str(raw_embedding_value))
-            ordered_embeddings[n_paragraph] = embedding_list
+            # Attempt to parse the embedding string into a Python list
+            embedding_list_item = ast.literal_eval(str(raw_embedding_value))
+            embeddings_list.append(embedding_list_item)
         except (ValueError, SyntaxError) as e:
-            print(f"Warning: Could not parse embedding for paragraph {n_paragraph} in version {version}. Error: {e}")
-            # Decide how to handle unparseable entries: skip, set to None, etc.
-            # For now, we'll skip it.
-            continue 
+            print(f"Warning: Could not parse embedding for paragraph {n_paragraph} in version {version}. Error: {e}. Skipping this embedding.")
+            continue
             
-    return ordered_embeddings
+    if not embeddings_list:
+        return f"No valid embeddings found for version: {version} after parsing."
+
+    # Convert the list of embedding lists into a NumPy array (matrix)
+    return np.array(embeddings_list, dtype=np.float32) # Specify dtype for consistency and memory efficiency
 
 async def get_all_umap_embeddings(version):
     """
     Retrieves all UMAP embeddings for a given version, returning them
-    as an OrderedDict sorted by n_paragraph. Ensures UMAP embeddings are
-    parsed as Python lists (vectors).
+    as a NumPy array (matrix), sorted by n_paragraph. Ensures UMAP embeddings are
+    parsed as Python lists (vectors) before converting to NumPy.
 
     Args:
         version (str): The name of the version to retrieve UMAP embeddings for.
 
     Returns:
-        OrderedDict: A dictionary where keys are n_paragraph (int) and
-                     values are UMAP embeddings (list of floats).
+        np.ndarray: A 2D NumPy array where each row is a UMAP embedding vector,
+                    sorted by their original n_paragraph.
         str: An error message if the version doesn't exist or no data is found.
     """
     
@@ -142,8 +141,6 @@ async def get_all_umap_embeddings(version):
         WHERE version_name = :v_n;
     """
     
-    # open_request is expected to return a list of Row/tuple objects,
-    # e.g., [(n_paragraph_int, umap_embedding_value_from_db), ...]
     data = await open_request(query, params={"v_n": version})
     
     if not data:
@@ -152,20 +149,46 @@ async def get_all_umap_embeddings(version):
     # Sort the data by 'n_paragraph' (which is at index 0)
     sorted_data = sorted(data, key=lambda x: x[0])
     
-    # Create an OrderedDict from the sorted data.
-    ordered_umap_embeddings = OrderedDict()
+    umap_embeddings_list = []
     for item in sorted_data:
         n_paragraph = item[0]
-        raw_umap_embedding_value = item[1] # This could be a string or already a list/array
+        raw_umap_embedding_value = item[1]
 
         try:
-            # Attempt to parse the UMAP embedding.
-            umap_embedding_list = ast.literal_eval(str(raw_umap_embedding_value))
-            ordered_umap_embeddings[n_paragraph] = umap_embedding_list
+            # Attempt to parse the UMAP embedding string into a Python list
+            umap_embedding_list_item = ast.literal_eval(str(raw_umap_embedding_value))
+            umap_embeddings_list.append(umap_embedding_list_item)
         except (ValueError, SyntaxError) as e:
-            print(f"Warning: Could not parse UMAP embedding for paragraph {n_paragraph} in version {version}. Error: {e}")
-            # Decide how to handle unparseable entries: skip, set to None, etc.
-            # For now, we'll skip it.
-            continue 
-        
-    return ordered_umap_embeddings
+            print(f"Warning: Could not parse UMAP embedding for paragraph {n_paragraph} in version {version}. Error: {e}. Skipping this embedding.")
+            continue
+            
+    if not umap_embeddings_list:
+        return f"No valid UMAP embeddings found for version: {version} after parsing."
+
+    # Convert the list of UMAP embedding lists into a NumPy array (matrix)
+    return np.array(umap_embeddings_list, dtype=np.float32) # Specify dtype for consistency and memory efficiency
+
+async def get_n_paragraph_umap(version, n_paragraph):
+    n_paragraph = int(n_paragraph) # Ensure n_paragraph is an integer
+    
+    query = """
+        SELECT umap FROM paragraph
+        WHERE n_paragraph = :n_p AND version_name = :v_n;
+    """
+
+    data = await open_request(query, params={"n_p": n_paragraph, "v_n": version})
+    
+    if not data:
+        return f"This paragraph: {n_paragraph} in version: {version} doesn't exist."
+    
+    # The result is expected to be a list containing one tuple,
+    # and that tuple contains the raw UMAP embedding value (at index 0).
+    raw_umap_embedding_value = data[0][0]
+    
+    try:
+        # Attempt to parse the UMAP embedding.
+        # It handles both string representations and already-parsed list/array types.
+        umap_embedding_list = ast.literal_eval(str(raw_umap_embedding_value))
+        return umap_embedding_list
+    except (ValueError, SyntaxError) as e:
+        return f"Error parsing UMAP embedding for paragraph {n_paragraph} in version {version}: {e}"

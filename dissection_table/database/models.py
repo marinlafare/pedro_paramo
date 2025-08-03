@@ -23,7 +23,10 @@ class Version(Base):
     version_data = Column('version_data',String, nullable = False)
     raw_text = Column('raw_text',String, nullable = False)
     n_words = Column('n_words', Integer, nullable = False)
-    n_paragraphs = Column('n_paragraphs', Integer, nullable =False) 
+    n_paragraphs = Column('n_paragraphs', Integer, nullable =False)
+    words_set = Column('word_set', String, nullable = False)
+    raw_words = Column('raw_words', String, nullable = False)
+    
 class Paragraph(Base):
     __tablename__ = "paragraph"
     id = Column(Integer, primary_key=True, autoincrement=True)

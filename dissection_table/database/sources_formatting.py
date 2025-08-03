@@ -5,7 +5,7 @@ from dissection_table.database.db_interface import DBInterface
 from dissection_table.database.models import Version, Paragraph
 import umap
 
-
+import re
 sources = dict()
 sources["portuguese_1"] = epub.read_epub("dissection_table/database/sources/Pedro Páramo (Juan Rulfo [Rulfo, Juan])_portugues_(Z-Library).epub")
 sources["spanish_1"] = epub.read_epub("dissection_table/database/sources/Pedro Paramo (Juan Rulfo)_espanol_(Z-Library).epub")
@@ -149,6 +149,36 @@ def get_raw_text(source: dict= {}):
     else:
         print(f'VERSION :: {source} :: not found, returning original: "spanish_1"')
         return get_raw_text("spanish_1")
+import unicodedata
+
+def clean_line(string: str = None) -> str:
+    """
+    Cleans a string by removing all non-alphabetic characters (preserving
+    letters with diacritics) and converting all alphabetic characters to lowercase.
+
+    Args:
+        string (str): The input string to clean. If None, returns an empty string.
+
+    Returns:
+        str: The cleaned string.
+    """
+    if string is None:
+        return ""
+    
+    # Use a list comprehension to filter characters.
+    # unicodedata.category(char) returns the general category of the character.
+    # 'L' category includes all letters (uppercase, lowercase, titlecase, modifier, other).
+    # This correctly handles accented characters like 'á', 'ü', 'ñ'.
+    cleaned_chars = [char for char in string if unicodedata.category(char).startswith('L')]
+    
+    # Join the filtered characters back into a string
+    cleaned_string = "".join(cleaned_chars)
+    
+    # Convert all characters to lowercase (Python's .lower() handles Unicode correctly)
+    cleaned_string = cleaned_string.lower()
+    
+    return cleaned_string
+
 
 def version(source:str = None):
     try:
@@ -158,11 +188,19 @@ def version(source:str = None):
     hard_coded_data["raw_text"] = get_raw_text(source)
     hard_coded_data["version_name"] = source
     words = hard_coded_data["raw_text"].replace('\n',' ').split(' ')
-    n_words = len([x for x in words if len(x)>0])
-    hard_coded_data["n_words"] = n_words
+    words = [x for x in words if len(x)>0]
+    words = [clean_line(x) for x in words]
+    raw_words = '#'.join([x for x in words])
+    
+    word_set = set(words)
+    n_words_len = len(words)
+    
+    hard_coded_data["n_words"] = n_words_len
     paragraphs = [x for x in hard_coded_data["raw_text"].split('\n') if len(x)>0]
     hard_coded_data['n_paragraphs'] = len(paragraphs)
     hard_coded_data['paragraphs'] = paragraphs
+    hard_coded_data['words_set'] = '#'.join([x for x in word_set])
+    hard_coded_data['raw_words'] = raw_words
     return hard_coded_data
 
 async def feed_database():
