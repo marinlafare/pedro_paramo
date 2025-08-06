@@ -3,6 +3,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.future import select
+from sqlalchemy import insert
 from typing import Type, Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 
@@ -16,7 +17,7 @@ class DBInterface:
     def initialize_engine_and_session(cls, database_url: str):
         if not database_url:
             raise ValueError("DATABASE_URL is wrong or something.")
-        
+            
         if cls._engine is None:
             cls._engine = create_async_engine(database_url, echo=False)
             cls.AsyncSessionLocal = sessionmaker(
@@ -54,15 +55,25 @@ class DBInterface:
             return item
 
     async def create_all(self, data_list: List[Dict[str, Any]]) -> List[Base]:
+        """
+        Performs a bulk insert of a list of dictionaries using the
+        SQLAlchemy insert statement, which correctly handles
+        auto-incrementing primary keys.
+        """
         if not data_list:
             print(f"Warning: create_all called with empty data list for {self.model.__name__}. No action taken.")
             return []
             
         async with self.get_session() as session:
-            items = [self.model(**data) for data in data_list]
-            session.add_all(items)
+            # Use the insert statement directly for an efficient bulk insert of dictionaries
+            await session.execute(
+                insert(self.model),
+                data_list
+            )
+            # Since we're not creating ORM objects, we can't return them directly.
+            # You would need a separate query to fetch the newly created items if needed.
             print(f"Successfully performed bulk insert for {len(data_list)} items in {self.model.__name__}.")
-            return items
+            return []
 
     async def read_all(self) -> List[Base]:
         async with self.AsyncSessionLocal() as session:
@@ -75,7 +86,7 @@ class DBInterface:
                 select(self.model).filter_by(id=item_id)
             )
             return result.scalars().first()
-    
+            
     async def update_by_id(self, item_id: int, new_data: Dict[str, Any]) -> Optional[Base]:
         async with self.get_session() as session:
             item = await session.get(self.model, item_id)

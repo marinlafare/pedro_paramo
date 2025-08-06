@@ -11,6 +11,8 @@ class VersionCreateData(BaseModel):
     ISBN:int
     metadata:str
     raw_text:str
+    text_embedding:str
+    text_umap:str
 class VersionParagraph(BaseModel):
     version:str
     n_paragraph:int

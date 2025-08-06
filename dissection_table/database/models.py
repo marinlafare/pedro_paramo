@@ -1,6 +1,7 @@
 # database.database.models.py
 from typing import Any
-from sqlalchemy import Column, ForeignKey, Integer, String, Float, BigInteger, Table
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, BigInteger, Table,PrimaryKeyConstraint,insert
+
 #from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -26,7 +27,8 @@ class Version(Base):
     n_paragraphs = Column('n_paragraphs', Integer, nullable =False)
     words_set = Column('word_set', String, nullable = False)
     raw_words = Column('raw_words', String, nullable = False)
-    
+    text_embedding = Column('text_embedding', Vector(768), nullable = False)    
+    text_umap = Column('umap', Vector(3), nullable = False)    
 class Paragraph(Base):
     __tablename__ = "paragraph"
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -36,3 +38,33 @@ class Paragraph(Base):
     embedding = Column("embedding",Vector(768), nullable = False)
     n_words = Column('n_words', Integer, nullable = False)
     umap = Column('umap', Vector(3), nullable = False)    
+class ParagraphSimilarity(Base):
+    __tablename__ = "paragraph_similarity"
+    # The `id` column is the sole primary key, matching the
+    # ID generated in the insert function.
+    id = Column(Integer, primary_key=True, autoincrement = True)
+    source_version_name = Column("source_version_name", String, nullable=False)
+    source_n_paragraph = Column("source_n_paragraph", Integer, nullable=False)
+    target_version_name = Column("target_version_name", String, nullable=False)
+    target_n_paragraph = Column("target_n_paragraph", Integer, nullable=False)
+    rank = Column("rank", Integer, nullable=False)
+
+# class ParagraphSimilarity(Base):
+#     __tablename__ = "paragraph_similarity"
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     source_version_name = Column("source_version_name", String, nullable=False)
+#     source_n_paragraph = Column("source_n_paragraph", Integer, nullable=False)
+#     target_version_name = Column("target_version_name", String, nullable=False)
+#     target_n_paragraph = Column("target_n_paragraph", Integer, nullable=False)
+#     rank = Column("rank", Integer, nullable=False)
+
+#     __table_args__ = (
+#         PrimaryKeyConstraint(
+#             'source_version_name',
+#             'source_n_paragraph',
+#             'target_version_name',
+#             'target_n_paragraph',
+#             'rank',
+#             name='paragraph_similarity_pk'
+#         ),
+#     )
